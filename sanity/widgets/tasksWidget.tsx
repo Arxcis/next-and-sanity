@@ -71,20 +71,15 @@ function TasksWidget(config: WidgetProps) {
             return;
         }
         
-        console.log("[TasksWidget.tsx] Subscribing...")
-        const subscription = tasksClient.listen<SanityTask>(`*[_type == "tasks.task"]`).subscribe(async update => {
-            if (!update.result) { 
-                return; // ...because an event without a result, is an event we are not interested in.
-            }
-            const createdByUser = update.result.createdByUser;
-            if (!createdByUser) {
-                return; // ...because user is still just editing the draft. Task not created yet.
-            }
-            setTimeout(async () => {
-                const tasks = await fetchTasks(tasksClient, config)
-                setTasks(tasks)
-            }, 1000) // Wait 1 second, to make sure tasks have been updated, before fetching...
-        })
+        logWidget("Subscribing...")
+        const subscription = tasksClient
+            .listen<SanityTask>(`*[_type == "tasks.task"]`, {}, {includeResult: true})
+            .subscribe(() => {
+                setTimeout(async () => {
+                    const tasks = await fetchTasks(tasksClient, config)
+                    setTasks(tasks)
+                }, 1000) // Wait 1 second, to make sure tasks have been updated, before fetching...
+            })
 
         return () => subscription.unsubscribe()
     }, [tasksClient])
@@ -122,7 +117,7 @@ function Task({path,router,task,users,config}: TaskProps) {
             style={{width: "100%"}}
             onClick={() => {
                 const _path = `${path}?sidebar=tasks&viewMode=edit&selectedTask=${task._id}`
-                console.info(`[TasksWidget.tsx] Navigating to: ${_path}`)
+                logWidget(`Navigating to: ${_path}`)
                 router.navigateUrl({path: _path})
             }}
         >
@@ -149,7 +144,7 @@ type SanityTask = {
     createdByUser: string,
 }
 async function fetchTasks(client: SanityClient, config: WidgetProps) : Promise<SanityTask[]> {
-    console.info(`[TasksWidget.tsx] Fetching...`)
+    logWidget(`Fetching...`)
 
     const tasks = await client.fetch(`
         *[_type == "tasks.task" && status in $status] | order(${config.sort} desc) [0...$limit] {
@@ -165,6 +160,10 @@ async function fetchTasks(client: SanityClient, config: WidgetProps) : Promise<S
         { ...config, ...config.filter}
     )
 
-    console.info(`[TasksWidget.tsx] Got ${tasks.length} tasks`)
+    logWidget(`Got ${tasks.length} tasks`)
     return tasks
 }    
+
+function logWidget(text: string) {
+    console.info(`[tasksWidget.tsx] ${text}`)
+}
